@@ -61,7 +61,7 @@ def init_load_setups():
     conversation = Conversation(engine="text-davinci-003")
     # load tts voices and language code mapping
     ttsVoices = {}
-    for line in open('language-tts-voice-mapping.txt', 'rt').readlines():
+    for line in open('lang-mapping.txt', 'rt').readlines():
         if len(line.strip().split(',')) == 3:
             language, langCode, voiceName = line.strip().split(',')
             ttsVoices[langCode.strip()] = voiceName.strip()
