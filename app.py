@@ -1,14 +1,12 @@
 from EdgeGPT.EdgeUtils import Query
 import speech_recognition as sr
 import sys, whisper, warnings, time, openai
-from dotenv import load_dotenv
 
 # Wake word variable
 HOSPITALITY_BOT_WAKE_WORD = "ok hospitality bot"
 
 # Initialize the OpenAI API
-load_dotenv('.env') # the .env file has your openai api key
-openai.api_key = os.getenv("OPENAI_API_KEY").strip('"')
+openai.api_key = "sk-proj-MCIgSStRmBYNGqwu6O5yT3BlbkFJOCuWnPeTWQ0A2GCbPP4l"
 
 r = sr.Recognizer()
 tiny_model = whisper.load_model('tiny')
