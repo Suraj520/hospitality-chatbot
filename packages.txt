@@ -1,11 +1,1 @@
-# Streamlit dependencies
-numpy==1.22.0
-streamlit==1.18.0
-# Additional dependencies for pyaudio
-libasound-dev
-portaudio19-dev
-libportaudio2
-libportaudiocpp0
-ffmpeg
-libav-tools
-python3-pyaudio
+PyAudio==0.2.13
