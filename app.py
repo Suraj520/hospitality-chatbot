@@ -9,8 +9,8 @@ HOSPITALITY_BOT_WAKE_WORD = "ok hospitality bot"
 openai.api_key = "sk-proj-MCIgSStRmBYNGqwu6O5yT3BlbkFJOCuWnPeTWQ0A2GCbPP4l"
 
 r = sr.Recognizer()
-tiny_model = whisper.load_model('tiny')
-base_model = whisper.load_model('base')
+tiny_model = whisper.load_model('base', download_root='asrmodel' )
+base_model = whisper.load_model('base', download_root='asrmodel' )
 listening_for_wake_word = True
 hospitality_bot_engine = True
 source = sr.Microphone() 
