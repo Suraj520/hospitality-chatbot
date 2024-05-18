@@ -6,7 +6,7 @@ import sys, whisper, warnings, time, openai
 HOSPITALITY_BOT_WAKE_WORD = "ok hospitality bot"
 
 # Initialize the OpenAI API
-openai.api_key = "sk-proj-MCIgSStRmBYNGqwu6O5yT3BlbkFJOCuWnPeTWQ0A2GCbPP4l"
+openai.api_key = "#"
 
 r = sr.Recognizer()
 tiny_model = whisper.load_model('base', download_root='asrmodel' )
