@@ -1,115 +1,87 @@
-import streamlit as st
-import whisper
-import openai
-from audiorecorder import audiorecorder
-import magic
-import os
-import re
+from EdgeGPT.EdgeUtils import Query
+import speech_recognition as sr
+import sys, whisper, warnings, time, openai
 from dotenv import load_dotenv
 
+# Wake word variable
+HOSPITALITY_BOT_WAKE_WORD = "ok hospitality bot"
 
+# Initialize the OpenAI API
+load_dotenv('.env') # the .env file has your openai api key
+openai.api_key = os.getenv("OPENAI_API_KEY").strip('"')
 
-# Define a function to generate TTS voices using the Web Speech API
-def generate_voice(text, voice):
-    # Define the JavaScript code to generate the voice
-    js_code = f"""
-        const synth = window.speechSynthesis;
-        const utterance = new SpeechSynthesisUtterance("{text}");
-        utterance.voice = speechSynthesis.getVoices().filter((v) => v.name === "{voice}")[0];
-        synth.speak(utterance);
-    """
-    # Use the components module to embed the JavaScript code in the web page
-    st.components.v1.html(f"<script>{js_code}</script>", height=0)
+r = sr.Recognizer()
+tiny_model = whisper.load_model('tiny')
+base_model = whisper.load_model('base')
+listening_for_wake_word = True
+hospitality_bot_engine = True
+source = sr.Microphone() 
+warnings.filterwarnings("ignore", category=UserWarning, module='whisper.transcribe', lineno=114)
 
+if sys.platform != 'darwin':
+    import pyttsx3
+    engine = pyttsx3.init()
 
-def get_audio_record_format(orgfile):
-    info = magic.from_file(orgfile).lower()
-    print(f'\n\n Recording file info is:\n {info} \n\n')
-    if 'webm' in info:
-        return '.webm'
-    elif 'iso media' in info:
-        return '.mp4'
-    elif 'wave' in info:
-        return '.wav'
+def speak(text):
+    if sys.platform == 'darwin':
+        ALLOWED_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,?!-_$:+-/ ")
+        clean_text = ''.join(c for c in text if c in ALLOWED_CHARS)
+        system(f"say '{clean_text}'")
     else:
-        return '.mp4'
+        engine.say(text)
+        engine.runAndWait()
 
+def listen_for_wake_word(audio):
+    global listening_for_wake_word
+    global hospitality_bot_engine
+    with open("wake_detect.wav", "wb") as f:
+        f.write(audio.get_wav_data())
+    result = tiny_model.transcribe('wake_detect.wav')
+    text_input = result['text']
+    if HOSPITALITY_BOT_WAKE_WORD in text_input.lower().strip():
+        print("Speak your prompt to the Hospitality Bot.")
+        speak('Listening')
+        listening_for_wake_word = False
 
-class Conversation:
-    def __init__(self, engine):
-        self.engine = engine
-    def generate_response(self, message):
-        response = openai.Completion.create(
-            engine=self.engine,
-            prompt=message,
-            max_tokens=1024,
-            n=1,
-            stop=None,
-            temperature=0.2,
-            presence_penalty=0.6,
-            frequency_penalty=0.6
-        )
-        return response.choices[0].text
-
-
-def init_load_setups():
-    # setup asr engine
-    asrmodel = whisper.load_model('base', download_root='asrmodel' )
-    # setup chatGPT instance
-    load_dotenv('.env') # the .env file has your openai api key
-    openai.api_key = os.getenv("OPENAI_API_KEY").strip('"')
-    conversation = Conversation(engine="text-davinci-003")
-    # load tts voices and language code mapping
-    ttsVoices = {}
-    for line in open('lang-mapping.txt', 'rt').readlines():
-        if len(line.strip().split(',')) == 3:
-            language, langCode, voiceName = line.strip().split(',')
-            ttsVoices[langCode.strip()] = voiceName.strip()
-    return asrmodel, conversation, ttsVoices
-
-
-# main voice chat app 
-def app():
-    # Put expensive initialize computation here
-    st.title("La Arcadia Hospitality Voice Assistant")
+def prompt_hospitality_bot(audio):
+    global listening_for_wake_word
+    global hospitality_bot_engine
+    try:
+        with open("prompt.wav", "wb") as f:
+            f.write(audio.get_wav_data())
+        result = base_model.transcribe('prompt.wav')
+        prompt_text = result['text']
+        if len(prompt_text.strip()) == 0:
+            print("Empty prompt. Please speak again.")
+            speak("Empty prompt. Please speak again.")
+            listening_for_wake_word = True
+        else:
+            print('User: ' + prompt_text)
+            output = Query(prompt_text) # Assuming Query function handles the response for the hospitality bot
+            print('Hospitality Bot: ' + str(output))
+            speak(str(output))
+            print('\nSay Ok Hospitality Bot to wake me up. \n')
+            hospitality_bot_engine = True
+            listening_for_wake_word = True
     
-    # get initial setup
-    asr, chatgpt, ttsVoices = init_load_setups()
+    except Exception as e:
+        print("Prompt error: ", e)
 
-    # recorder 
-    audio = audiorecorder("Push to Talk", "Recording... (push again to stop)")
+def callback(recognizer, audio):
+    global listening_for_wake_word
+    global hospitality_bot_engine
+    if listening_for_wake_word:
+        listen_for_wake_word(audio)
+    elif hospitality_bot_engine:
+        prompt_hospitality_bot(audio)
 
-    if len(audio) > 0:
-        # To play audio in frontend:
-        st.audio(audio.tobytes())
-        # To save audio to a file:
-        audioname='recording.tmp'
-        with open( audioname, "wb") as f:
-            f.write(audio.tobytes())
-        ## get record file formate based on file magics
-        recordFormat = get_audio_record_format(audioname)
-        os.rename(audioname, audioname + recordFormat )
+def start_listening():
+    with source as s:
+        r.adjust_for_ambient_noise(s, duration=2)
+    print('\nSay Ok Hospitality Bot to wake me up. \n')
+    r.listen_in_background(source, callback)
+    while True:
+        time.sleep(1) 
 
-        st.markdown("<b>Chat History</b> ", unsafe_allow_html=True)
-
-        with st.spinner("Recognizing your voice command ..."):
-            asr_result = asr.transcribe( audioname + recordFormat )
-            text = asr_result["text"]
-            languageCode = asr_result["language"]
-            st.markdown("<b>You:</b> " + text, unsafe_allow_html=True)
-            print('ASR result is:' + text)
-
-        st.write('')
-
-        with st.spinner("Getting ChatGPT answer for your command ..."):
-            response = chatgpt.generate_response(text)
-            st.markdown("<b>chatGPT:</b> " + response, unsafe_allow_html=True)
-            print('chatGPT response is: '   + response)
-            spokenResponse = re.sub(r'\s+', ' ', response)
-            spokenResponse = spokenResponse.lstrip().rstrip()
-            #Speak the input text
-            generate_voice(spokenResponse, ttsVoices[languageCode])
-
-
-if __name__ == "__main__":
-    app()
+if __name__ == '__main__':
+    start_listening()
